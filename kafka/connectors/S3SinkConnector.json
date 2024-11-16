@@ -1,0 +1,21 @@
+{
+    "name": "minio-sink",
+    "config": {
+        "connector.class": "io.confluent.connect.s3.S3SinkConnector",
+        "storage.class": "io.confluent.connect.s3.storage.S3Storage",
+        "format.class": "io.confluent.connect.s3.format.json.JsonFormat",
+        "topics": "mongodb.PERFECT_STORE.SCORES",
+        "tasks.max": 1,
+        "flush.size": 1,
+        "s3.region": "us-east-1",
+        "s3.bucket.name": "1-raw",
+        "store.url": "http://minio:9000",
+        "schema.generator.class": "io.confluent.connect.storage.hive.schema.DefaultSchemaGenerator",
+        "partitioner.class": "io.confluent.connect.storage.partitioner.DailyPartitioner",
+        "schema.compatibility": "NONE",
+        "behavior.on.null.values": "write",
+        "store.kafka.keys": "true",
+        "locale": "pt-BR",
+        "timezone": "America/Sao_Paulo"
+    }
+}

@@ -1,5 +1,7 @@
 services:
   minio:
+    container_name: xpe-minio
+    hostname: minio
     image: quay.io/minio/minio
     command: server /data --console-address ":9001"
     restart: always
@@ -14,16 +16,123 @@ services:
     networks:
       - tcc_xpe
 
-  mongodb:
-    image: mongo
+  mongodb1:
+    container_name: xpe-mongodb1
+    hostname: mongodb1
+    build: .
     restart: always
     ports:
       - "27017:27017"
     volumes:
-      - ./mongodb/data:/data/db
+      - ./mongodb/data1:/data/db
     environment:
       MONGO_INITDB_ROOT_USERNAME: mongoadmin
       MONGO_INITDB_ROOT_PASSWORD: mongoadmin
+    command: mongod --replSet xpe-replica-set --bind_ip_all --keyFile /data/security.key
+    networks:
+      - tcc_xpe
+
+  mongodb2:
+    container_name: xpe-mongodb2
+    hostname: mongodb2
+    build: .
+    restart: always
+    ports:
+      - "27018:27017"
+    volumes:  
+      - ./mongodb/data2:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongoadmin
+      MONGO_INITDB_ROOT_PASSWORD: mongoadmin
+    command: mongod --replSet xpe-replica-set --bind_ip_all --keyFile /data/security.key
+    networks:
+      - tcc_xpe
+
+  zookeeper:
+    container_name: xpe-zookeeper
+    hostname: zookeeper
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - tcc_xpe
+
+  kafka:
+    container_name: xpe-kafka
+    hostname: kafka
+    image: confluentinc/cp-kafka:7.5.0
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - tcc_xpe
+
+  kafka-connect:
+    container_name: xpe-kafka-connect
+    hostname: kafka-connect
+    image: confluentinc/cp-kafka-connect-base:latest
+    platform: linux/arm64
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - kafka
+      - mongodb1
+      - mongodb2
+      - minio
+    ports:
+      - 8083:8083
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: "kafka:9092"
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: kafka-connect
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: _connect-status
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER:  "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components,/data/connect-jars,/etc/kafka-connect/jars
+      CONNECT_REST_ADVERTISED_HOST_NAME:  localhost # "kafka-connect"
+    networks:
+      - tcc_xpe
+    command:
+      - bash
+      - -c
+      - |
+        echo "Installing Connector"
+        confluent-hub install mongodb/kafka-connect-mongodb:latest --no-prompt
+        confluent-hub install confluentinc/kafka-connect-s3:latest --no-prompt
+        #
+        echo "Launching Kafka Connect worker"
+        /etc/confluent/docker/run &
+        #
+        sleep infinity
+
+  spark:
+    image: deltaio/delta-docker:latest_arm64
+    container_name: xpe-spark
+    hostname: spark
+    volumes:
+      - ./spark/notebooks:/opt/spark/work-dir
+    ports:
+      - 8888-8889:8888-8889
     networks:
       - tcc_xpe
 

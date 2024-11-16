@@ -1,0 +1,15 @@
+{
+    "name": "perfect-store-mongo-source",
+    "config": {
+        "connector.class": "com.mongodb.kafka.connect.MongoSourceConnector",
+        "connection.uri": "mongodb://mongoadmin:mongoadmin@mongodb1:27017/?replicaSet=xpe-replica-set",
+        "database": "PERFECT_STORE",
+        "collection": "SCORES",
+        "topic.prefix": "mongodb",
+        "topic.separtor": ".",
+        "change.stream.full.document": "updateLookup",
+        "startup.mode": "copy_existing",
+        "output.format.value": "schema",
+        "value.converter.schemas.enable": "true"
+    }
+}

@@ -1,2 +1,5 @@
 minio/
 mongodb/
+.venv/
+data/
+.DS_Store   
